@@ -1,0 +1,8 @@
+SMF-PackageUploadFix
+--------------------------
+Fix for a wrong case of "The package you tried to upload either is not a valid package or has become corrupted." error, that seems to be happening when SMF runs on specific newer systems.
+
+It applies the following fixes:
+
+- Fixes uploading of .tar.gz/.tgz packages by implementing a small change regarding a crc32 comparison (introduced in SMF v2)
+- Fixes uploading of .zip packages by replacing read_zip_data function with the respective one of SMF v2 (adjusted for compatibility)
