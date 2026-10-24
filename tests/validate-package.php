@@ -105,9 +105,7 @@ $namespace = 'http://www.simplemachines.org/xml/modification';
 $document = new DOMDocument();
 $xml_path = dirname(dirname(__FILE__)) . DIRECTORY_SEPARATOR . 'modification.xml';
 
-$previous_entity_loader = libxml_disable_entity_loader(true);
-$loaded = $document->load($xml_path);
-libxml_disable_entity_loader($previous_entity_loader);
+$loaded = $document->load($xml_path, LIBXML_NONET);
 
 if (!$loaded)
 	fail_test('could not load modification.xml');
