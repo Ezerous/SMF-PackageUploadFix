@@ -2,7 +2,7 @@
 <!DOCTYPE modification SYSTEM "http://www.simplemachines.org/xml/modification">
 <modification xmlns="http://www.simplemachines.org/xml/modification" xmlns:smf="http://www.simplemachines.org/">
     <id>Ezerous:SMF-PackageUploadFix</id>
-    <version>1.0.0</version>
+    <version>1.0.1</version>
     <file name="$sourcedir/Subs-Package.php">
         <operation>
             <search position="replace"><![CDATA[($crc['crc32'] != smf_crc32($data))]]></search>
