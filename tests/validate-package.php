@@ -6,54 +6,191 @@ function fail_test($message)
 	exit(1);
 }
 
-function apply_replacement($source, $search, $replacement)
+function get_single_node($parent, $namespace, $name, $context)
 {
+	$nodes = $parent->getElementsByTagNameNS($namespace, $name);
+
+	if ($nodes->length !== 1)
+		fail_test($context . ' must contain exactly one ' . $name . ' element');
+
+	return $nodes->item(0);
+}
+
+function token_can_end_expression($id, $value)
+{
+	if ($id === T_VARIABLE || $id === T_STRING || $id === T_CONSTANT_ENCAPSED_STRING || $id === T_LNUMBER || $id === T_DNUMBER || $id === T_TRUE || $id === T_FALSE || $id === T_NULL)
+		return true;
+
+	return $id === null && in_array($value, array(')', ']', '}'), true);
+}
+
+function assert_php53_compatible($code, $context)
+{
+	/*
+		PHP 5.3 does not understand short array syntax. Tokenizing the code
+		lets us ignore brackets inside strings and comments without evaluating
+		package-provided PHP code.
+	*/
+	$tokens = token_get_all('<?php ' . $code);
+	$previous_can_end_expression = false;
+
+	foreach ($tokens as $token)
+	{
+		if (is_array($token))
+		{
+			$id = $token[0];
+			$value = $token[1];
+
+			if ($id === T_OPEN_TAG || $id === T_WHITESPACE || $id === T_COMMENT || $id === T_DOC_COMMENT)
+				continue;
+		}
+		else
+		{
+			$id = null;
+			$value = $token;
+		}
+
+		if ($value === '[' && !$previous_can_end_expression)
+			fail_test($context . ' uses PHP short array syntax, which is not compatible with PHP 5.3');
+
+		$previous_can_end_expression = token_can_end_expression($id, $value);
+	}
+
+	if (strpos($code, '??') !== false || strpos($code, '<=>') !== false)
+		fail_test($context . ' uses syntax newer than PHP 5.3');
+}
+
+function replace_once($source, $search, $replacement, $context)
+{
+	if ($search === '')
+		fail_test($context . ' has an empty search anchor');
+
 	$count = 0;
 	$result = str_replace($search, $replacement, $source, $count);
 
 	if ($count !== 1)
-		fail_test('expected exactly one replacement, found ' . $count);
+		fail_test($context . ' expected exactly one matching anchor, found ' . $count);
 
 	return $result;
 }
 
-$namespace = 'http://www.simplemachines.org/xml/modification';
-$document = new DOMDocument();
-
-if (!$document->load(dirname(dirname(__FILE__)) . DIRECTORY_SEPARATOR . 'modification.xml'))
-	fail_test('could not load modification.xml');
-
-$operations = $document->getElementsByTagNameNS($namespace, 'operation');
-if ($operations->length !== 2)
-	fail_test('expected two modification operations');
-
-$replacements = array();
-for ($i = 0; $i < $operations->length; $i++)
+function apply_operation($source, $operation, $context)
 {
-	$search_nodes = $operations->item($i)->getElementsByTagNameNS($namespace, 'search');
-	$add_nodes = $operations->item($i)->getElementsByTagNameNS($namespace, 'add');
+	if ($operation['position'] === 'replace')
+		$replacement = $operation['add'];
+	elseif ($operation['position'] === 'before')
+		$replacement = $operation['add'] . $operation['search'];
+	else
+		$replacement = $operation['search'] . $operation['add'];
 
-	if ($search_nodes->length !== 1 || $add_nodes->length !== 1)
-		fail_test('each operation must contain one search and one add element');
-
-	$search = $search_nodes->item(0)->textContent;
-	$add = $add_nodes->item(0)->textContent;
-
-	if (preg_match('/[=,]\s*\[/', $add))
-		fail_test('replacement contains PHP short array syntax');
-
-	$replacements[] = array('search' => $search, 'add' => $add);
+	return replace_once($source, $operation['search'], $replacement, $context);
 }
 
-eval($replacements[1]['add']);
+function reverse_operation($source, $operation, $context)
+{
+	if ($operation['position'] === 'replace')
+		$installed = $operation['add'];
+	elseif ($operation['position'] === 'before')
+		$installed = $operation['add'] . $operation['search'];
+	else
+		$installed = $operation['search'] . $operation['add'];
 
-$original = "<?php\n" . $replacements[0]['search'] . "\n" . $replacements[1]['search'] . "\n";
-$installed = apply_replacement($original, $replacements[0]['search'], $replacements[0]['add']);
-$installed = apply_replacement($installed, $replacements[1]['search'], $replacements[1]['add']);
-$restored = apply_replacement($installed, $replacements[0]['add'], $replacements[0]['search']);
-$restored = apply_replacement($restored, $replacements[1]['add'], $replacements[1]['search']);
+	if ($installed === '')
+		fail_test($context . ' cannot be reversed because it installs an empty string');
 
-if ($restored !== $original)
-	fail_test('replacement operations are not reversible');
+	return replace_once($source, $installed, $operation['search'], $context . ' during reverse');
+}
 
-echo 'PASS: XML, PHP compatibility, and replacement reversibility' . PHP_EOL;
+$namespace = 'http://www.simplemachines.org/xml/modification';
+$document = new DOMDocument();
+$xml_path = dirname(dirname(__FILE__)) . DIRECTORY_SEPARATOR . 'modification.xml';
+
+$previous_entity_loader = libxml_disable_entity_loader(true);
+$loaded = $document->load($xml_path);
+libxml_disable_entity_loader($previous_entity_loader);
+
+if (!$loaded)
+	fail_test('could not load modification.xml');
+
+$files = $document->getElementsByTagNameNS($namespace, 'file');
+if ($files->length === 0)
+	fail_test('modification.xml contains no file elements');
+
+$total_operations = 0;
+
+for ($file_index = 0; $file_index < $files->length; $file_index++)
+{
+	$file = $files->item($file_index);
+	$file_name = $file->getAttribute('name');
+	if ($file_name === '')
+		$file_name = 'file #' . ($file_index + 1);
+
+	$operations = $file->getElementsByTagNameNS($namespace, 'operation');
+	if ($operations->length === 0)
+		fail_test($file_name . ' contains no modification operations');
+
+	$file_operations = array();
+	$fixture = "<?php\n";
+
+	for ($operation_index = 0; $operation_index < $operations->length; $operation_index++)
+	{
+		$operation_node = $operations->item($operation_index);
+		$context = $file_name . ', operation #' . ($operation_index + 1);
+		$search_node = get_single_node($operation_node, $namespace, 'search', $context);
+		$add_node = get_single_node($operation_node, $namespace, 'add', $context);
+
+		$position = strtolower(trim($search_node->parentNode->getAttribute('position')));
+		if ($position === '')
+			$position = 'replace';
+		if (!in_array($position, array('replace', 'before', 'after'), true))
+			fail_test($context . ' uses unsupported search position "' . $position . '"');
+
+		$search = $search_node->textContent;
+		$add = $add_node->textContent;
+		if ($search === '')
+			fail_test($context . ' has an empty search anchor');
+
+		assert_php53_compatible($add, $context . ' add block');
+
+		$file_operations[] = array(
+			'position' => $position,
+			'search' => $search,
+			'add' => $add
+		);
+
+		/* Keep every anchor in one synthetic target file for uniqueness checks. */
+		$fixture .= '/* __SMF_PACKAGE_VALIDATOR_ANCHOR_' . $operation_index . '__ */' . "\n";
+		$fixture .= $search . "\n";
+	}
+
+	for ($operation_index = 0; $operation_index < count($file_operations); $operation_index++)
+	{
+		$operation = $file_operations[$operation_index];
+		$context = $file_name . ', operation #' . ($operation_index + 1);
+		$count = substr_count($fixture, $operation['search']);
+
+		if ($count !== 1)
+			fail_test($context . ' search anchor is not unique, found ' . $count . ' matches');
+	}
+
+	$installed = $fixture;
+	for ($operation_index = 0; $operation_index < count($file_operations); $operation_index++)
+	{
+		$context = $file_name . ', operation #' . ($operation_index + 1);
+		$installed = apply_operation($installed, $file_operations[$operation_index], $context);
+	}
+
+	$restored = $installed;
+	for ($operation_index = count($file_operations) - 1; $operation_index >= 0; $operation_index--)
+	{
+		$context = $file_name . ', operation #' . ($operation_index + 1);
+		$restored = reverse_operation($restored, $file_operations[$operation_index], $context);
+	}
+
+	if ($restored !== $fixture)
+		fail_test($file_name . ' operations are not reversible');
+
+	$total_operations += count($file_operations);
+}
+
+echo 'PASS: XML, PHP 5.3 compatibility, ' . $total_operations . ' operations, unique anchors, and reversibility' . PHP_EOL;
