@@ -123,7 +123,7 @@
 	if (($data_ecr = strrpos($data, "\x50\x4b\x05\x06")) === false)
 		return false;
 
-	$return = [];
+	$return = array();
 
 	// End of central directory record (EOCD)
 	$cdir = unpack('vdisk/@4/vdisk_entries/ventries/@12/Voffset', substr($data, $data_ecr + 4, 16));
@@ -190,7 +190,7 @@
 			}
 			// This is a directory, so we're gonna want to create it. (probably...)
 			elseif (!$single_file) {
-				$file_info['filename'] = strtr($file_info['filename'], ['../' => '', '/..' => '']);
+				$file_info['filename'] = strtr($file_info['filename'], array('../' => '', '/..' => ''));
 
 				if (!file_exists($destination . '/' . $file_info['filename'])) {
 					mktree($destination . '/' . $file_info['filename'], 0777);
@@ -238,13 +238,13 @@
 		}
 
 		if ($is_file) {
-			$return[] = [
+			$return[] = array(
 				'filename' => $file_info['filename'],
 				'md5' => md5($file_info['data']),
 				'preview' => substr($file_info['data'], 0, 100),
 				'size' => $file_info['size'],
-				'skipped' => false,
-			];
+				'skipped' => false
+			);
 		}
 	}
 

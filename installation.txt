@@ -6,3 +6,5 @@ It applies the following fixes:
 
 - Fixes uploading of .tar.gz/.tgz packages by implementing a small change regarding a crc32 comparison (introduced in SMF v2)
 - Fixes uploading of .zip packages by replacing read_zip_data function with the respective one of SMF v2 (adjusted for compatibility)
+
+Requires PHP 5.3 or newer, in addition to the PHP version supported by the installed SMF 1.1.x release.
