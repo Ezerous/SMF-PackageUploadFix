@@ -1,10 +1,10 @@
 # SMF-PackageUploadFix
 
 [![GitHub release](https://img.shields.io/github/release/Ezerous/SMF-PackageUploadFix.svg)](https://github.com/Ezerous/SMF-PackageUploadFix/releases)
-[![SMF](https://img.shields.io/badge/SMF-1.1.x-blue.svg?style==flat)](https://simplemachines.org)
-![Last Commit](https://img.shields.io/github/last-commit/Ezerous/SMF-PackageUploadFix/develop.svg?style=flat)
-[![Tests](https://github.com/Ezerous/SMF-PackageUploadFix/actions/workflows/tests.yml/badge.svg)](https://github.com/Ezerous/SMF-PackageUploadFix/actions/workflows/tests.yml)
+[![SMF](https://img.shields.io/badge/SMF-1.1.x-blue.svg?style=flat)](https://simplemachines.org)
 ![PHP 5.3+](https://img.shields.io/badge/PHP-5.3%2B-8892BF.svg)
+[![tests](https://github.com/Ezerous/SMF-PackageUploadFix/actions/workflows/tests.yml/badge.svg)](https://github.com/Ezerous/SMF-PackageUploadFix/actions/workflows/tests.yml)
+![Last Commit](https://img.shields.io/github/last-commit/Ezerous/SMF-PackageUploadFix/develop.svg?style=flat)
 
 A package for [SMF](https://www.simplemachines.org/) v1.1.x forums that fixes a wrong case of "The package you tried to upload either is not a valid package or has become corrupted." error, that seems to be happening when SMF runs on specific newer systems.
 
